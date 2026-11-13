@@ -1,0 +1,33 @@
+# Configurazione e credenziali locali (NON pubblicare su Git!)
+twixy_config.json
+*_config.json
+
+# Log e crash report locali
+*.log
+twixy_crash.log
+
+# Build, PyInstaller e artefatti temporanei
+dist/
+build/
+*.spec
+_twixy_setup_wizard.py
+twixy_payload.zip
+*.zip
+*.7z
+
+# Librerie e binari scaricati in fase di compilazione
+vendor/
+vlc_portable/
+
+# Cache Python e virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Altre cartelle locali non appartenenti al repository Twixy
+fc/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,9 @@
+# Dipendenze runtime di Twixy
+customtkinter>=5.2.0
+pillow>=10.0.0
+requests>=2.31.0
+python-vlc>=3.0.0
+
+# Dipendenze aggiuntive necessarie solo per compilare l'installer (crea_installer.bat)
+# pyinstaller>=6.0.0
+# py7zr>=0.20.0
