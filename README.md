@@ -27,11 +27,11 @@ Client desktop nativo per Windows dedicato alla visione di streaming live e VOD,
 
 | Interfaccia Principale & Chat | Multi-Live a Griglia |
 | :---: | :---: |
-| ![Interfaccia Principale](docs/screenshots/main-ui.png?v=2) | ![Multi-Live Grid](docs/screenshots/multiview-grid.png) |
+| ![Interfaccia Principale](docs/screenshots/main-ui.png?v=2) | ![Multi-Live Grid](docs/screenshots/multiview-grid.png?v=2) |
 
 | Clip Studio (Salvataggio Locale MP4) | Centro Drops Attivi |
 | :---: | :---: |
-| ![Clip Studio](docs/screenshots/clip-studio.png) | ![Centro Drops](docs/screenshots/drops-center.png) |
+| ![Clip Studio](docs/screenshots/clip-studio.png?v=2) | ![Centro Drops](docs/screenshots/drops-center.png?v=2) |
 
 ---
 
