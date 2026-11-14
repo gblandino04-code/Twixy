@@ -29,7 +29,8 @@ VLC_DEST = os.path.join(VENDOR_DIR, "vlc")
 MPV_DEST = os.path.join(VENDOR_DIR, "mpv")
 LOGO_ICO = os.path.join(BASE_DIR, "logo.ico")
 LOGO_PNG = os.path.join(BASE_DIR, "logo.png")
-GUI_SCRIPT = os.path.join(BASE_DIR, "xtra_gui.py")
+GUI_SCRIPT = os.path.join(BASE_DIR, "launch_twixy.py")
+CORE_PYC = os.path.join(BASE_DIR, "xtra_gui_core.pyc")
 EMOTE_ENGINE = os.path.join(BASE_DIR, "emote_engine.py")
 
 VLC_ZIP_URL = "https://ftp.fau.de/videolan/vlc/3.0.21/win64/vlc-3.0.21-win64.zip"
@@ -42,7 +43,9 @@ def check_and_autofix_files():
         shutil.move(LOGO_ICO + ".txt", LOGO_ICO)
 
     if not os.path.isfile(GUI_SCRIPT):
-        raise FileNotFoundError(f"Non trovo 'xtra_gui.py' nella cartella:\n{BASE_DIR}")
+        raise FileNotFoundError(f"Non trovo 'launch_twixy.py' nella cartella:\n{BASE_DIR}")
+    if not os.path.isfile(CORE_PYC):
+        raise FileNotFoundError(f"Non trovo 'xtra_gui_core.pyc' nella cartella:\n{BASE_DIR}")
 
     with open(GUI_SCRIPT, "r", encoding="utf-8") as f:
         code = f.read()
@@ -128,6 +131,59 @@ def bundle_vlc_64():
     print("[OK] VLC 64-bit integrato in vendor/vlc.")
 
 
+def _extract_7z_archive(archive_path, dest_dir):
+    os.makedirs(dest_dir, exist_ok=True)
+    # 1) Windows 10/11 tar.exe (libarchive) supporta BCJ2 nativamente (usato da mpv-winbuild)
+    tar_exe = shutil.which("tar") or os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "tar.exe")
+    if tar_exe and os.path.isfile(tar_exe):
+        try:
+            subprocess.check_call([tar_exe, "-xf", archive_path, "-C", dest_dir])
+            if os.path.isfile(os.path.join(dest_dir, "mpv.exe")):
+                return
+        except Exception:
+            pass
+
+    # 2) 7-Zip installato nel sistema (7z.exe / 7za.exe / 7zr.exe)
+    sevenz_candidates = [
+        shutil.which("7z"),
+        shutil.which("7za"),
+        shutil.which("7zr"),
+        r"C:\Program Files\7-Zip\7z.exe",
+        r"C:\Program Files (x86)\7-Zip\7z.exe",
+    ]
+    for zbin in sevenz_candidates:
+        if zbin and os.path.isfile(zbin):
+            try:
+                subprocess.check_call([zbin, "x", "-y", f"-o{dest_dir}", archive_path])
+                if os.path.isfile(os.path.join(dest_dir, "mpv.exe")):
+                    return
+            except Exception:
+                pass
+
+    # 3) Fallback con 7zr.exe standalone ufficiale se py7zr fallisce su BCJ2
+    try:
+        import py7zr
+        with py7zr.SevenZipFile(archive_path, mode="r") as z:
+            z.extractall(path=dest_dir)
+        if os.path.isfile(os.path.join(dest_dir, "mpv.exe")):
+            return
+    except Exception:
+        pass
+
+    tmp_7zr = os.path.join(BASE_DIR, "_7zr_tmp.exe")
+    try:
+        req_z = urllib.request.Request("https://www.7-zip.org/a/7zr.exe", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_z, timeout=30) as resp, open(tmp_7zr, "wb") as out:
+            shutil.copyfileobj(resp, out)
+        subprocess.check_call([tmp_7zr, "x", "-y", f"-o{dest_dir}", archive_path])
+    finally:
+        if os.path.isfile(tmp_7zr):
+            try:
+                os.remove(tmp_7zr)
+            except Exception:
+                pass
+
+
 def bundle_mpv_64():
     os.makedirs(MPV_DEST, exist_ok=True)
     if os.path.isfile(os.path.join(MPV_DEST, "mpv.exe")):
@@ -138,6 +194,18 @@ def bundle_mpv_64():
     if which_mpv and os.path.isfile(which_mpv):
         shutil.copy2(which_mpv, os.path.join(MPV_DEST, "mpv.exe"))
         return
+
+    local_7z = os.path.join(BASE_DIR, "mpv_bundle.7z")
+    if os.path.isfile(local_7z):
+        print("[3/5] Estrazione MPV 64-bit da mpv_bundle.7z locale...")
+        try:
+            _extract_7z_archive(local_7z, MPV_DEST)
+            if os.path.isfile(os.path.join(MPV_DEST, "mpv.exe")):
+                os.remove(local_7z)
+                print("[OK] MPV 64-bit integrato in vendor/mpv.")
+                return
+        except Exception as e:
+            print(f"[Nota] Estrazione mpv_bundle.7z locale non riuscita ({e}), provo download...")
 
     print("[3/5] Ricerca ultima release MPV 64-bit da GitHub...")
     try:
@@ -155,15 +223,15 @@ def bundle_mpv_64():
 
         if dl_url:
             print(f"      Scaricamento: {os.path.basename(dl_url)}...")
-            tmp_7z = os.path.join(BASE_DIR, "mpv_bundle.7z")
             req_dl = urllib.request.Request(dl_url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req_dl, timeout=60) as resp, open(tmp_7z, "wb") as out:
+            with urllib.request.urlopen(req_dl, timeout=60) as resp, open(local_7z, "wb") as out:
                 shutil.copyfileobj(resp, out)
-            import py7zr
-            with py7zr.SevenZipFile(tmp_7z, mode="r") as z:
-                z.extractall(path=MPV_DEST)
-            os.remove(tmp_7z)
-            print("[OK] MPV 64-bit integrato in vendor/mpv.")
+            _extract_7z_archive(local_7z, MPV_DEST)
+            if os.path.isfile(os.path.join(MPV_DEST, "mpv.exe")):
+                os.remove(local_7z)
+                print("[OK] MPV 64-bit integrato in vendor/mpv.")
+            else:
+                print("[Attenzione] mpv.exe non trovato dopo estrazione.")
     except Exception as e:
         print(f"[Nota] MPV opzionale saltato ({e}), VLC 64-bit principale e' incluso.")
 
@@ -191,6 +259,8 @@ def build_twixy_app():
         f"--add-data={LOGO_ICO};.",
         f"--add-data={VENDOR_DIR};vendor",
     ]
+    if os.path.isfile(CORE_PYC):
+        cmd.append(f"--add-data={CORE_PYC};.")
     if os.path.isfile(EMOTE_ENGINE):
         cmd.append(f"--add-data={EMOTE_ENGINE};.")
     if os.path.isfile(LOGO_PNG):
@@ -200,6 +270,8 @@ def build_twixy_app():
 
     # Copia di sicurezza di libvlc.dll, libvlccore.dll, plugins/, logo e VC++ runtime anche nella root di dist/Twixy
     dist_twixy = os.path.join(BASE_DIR, "dist", "Twixy")
+    if os.path.isfile(CORE_PYC):
+        shutil.copy2(CORE_PYC, os.path.join(dist_twixy, "xtra_gui_core.pyc"))
     if os.path.isfile(EMOTE_ENGINE):
         shutil.copy2(EMOTE_ENGINE, os.path.join(dist_twixy, "emote_engine.py"))
     if os.path.isfile(LOGO_ICO):
